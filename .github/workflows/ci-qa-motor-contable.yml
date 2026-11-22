@@ -1,4 +1,4 @@
-name: CI / QA - Motor Contable Transaccional
+name: CI / QA - Pipeline Completo (Calidad, Seguridad, Cobertura y SUNAT)
 
 on:
   push:
@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  qa-pruebas-unitarias-e-integracion:
-    name: QA - Pruebas Unitarias, Integración API y Esquema SQL
+  lint-y-seguridad-sast:
+    name: 1. QA Estático (Ruff Lint, JS Check y Seguridad SAST Bandit)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar código del repositorio
+      - name: Descargar código fuente
         uses: actions/checkout@v4
 
       - name: Configurar Python 3.12
@@ -21,50 +21,126 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verificar sintaxis Python (backend y tests)
-        run: python -m compileall -q backend tests
-
-      - name: Validar integridad del esquema relacional SQLite (database/schema.sql)
-        run: |
-          python -c "
-          import sqlite3, pathlib
-          conn = sqlite3.connect(':memory:')
-          conn.executescript(pathlib.Path('database/schema.sql').read_text(encoding='utf-8'))
-          tablas = [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()]
-          esperadas = {'periodos_contables', 'cuentas_pcge', 'asientos_cabecera', 'asientos_detalle', 'auditoria_transacciones'}
-          faltantes = esperadas - set(tablas)
-          assert not faltantes, f'Tablas faltantes en schema.sql: {faltantes}'
-          print('Esquema SQL verificado correctamente. Tablas:', sorted(esperadas))
-          "
-
-      - name: Ejecutar suite completa de pruebas QA (unitarias e integración API)
-        run: python -m unittest discover -s tests -p "test_*.py" -v
-
-  qa-calidad-y-dod:
-    name: QA - Verificación de DoD, Frontend JS y Archivos Prohibidos
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Descargar código del repositorio
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js para validación de sintaxis JS
+      - name: Configurar Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Instalar herramientas QA (ruff, bandit)
+        run: pip install -r requirements-qa.txt
+
+      - name: Análisis estático Python (Ruff)
+        run: ruff check backend tests --select E,F,W --ignore E501,E402
+
+      - name: Auditoría de seguridad estática SAST (Bandit)
+        run: bandit -r backend -ll
 
       - name: Verificar sintaxis JavaScript del frontend
         run: |
           node --check frontend/static/js/pcge.js
           node --check frontend/static/js/app.js
-          echo "Sintaxis JavaScript verificada sin errores."
 
-      - name: Verificar Definition of Done (sin bases de datos ni archivos temporales versionados)
+      - name: Verificar políticas Definition of Done (sin archivos .db ni secretos)
         run: |
           PROHIBIDOS=$(git ls-files '*.db' '*.sqlite' '*.sqlite3' '.env' '*.pyc')
           if [ -n "$PROHIBIDOS" ]; then
-            echo "ERROR DoD: Se encontraron archivos generados o sensibles en el repositorio:"
+            echo "ERROR DoD: Archivos prohibidos detectados en el repositorio:"
             echo "$PROHIBIDOS"
             exit 1
           fi
-          echo "OK: No existen archivos prohibidos ni bases de datos binarias versionadas."
+          echo "OK: Repositorio limpio según docs/definition-of-done.md."
+
+  pruebas-matriz-y-cobertura:
+    name: 2. QA Pruebas y Cobertura (Python ${{ matrix.python-version }})
+    needs: lint-y-seguridad-sast
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Instalar herramientas de pruebas y cobertura
+        run: pip install -r requirements-qa.txt
+
+      - name: Ejecutar suite QA con pytest + Quality Gate de cobertura (>= 75%)
+        run: |
+          pytest tests/test_motor_contable.py tests/test_api_integracion.py tests/test_rendimiento_y_reglas_sunat.py \
+            -v \
+            --cov=backend \
+            --cov-report=term-missing \
+            --cov-report=html:reportes_qa/coverage_html \
+            --cov-report=xml:reportes_qa/coverage.xml \
+            --junitxml=reportes_qa/junit_results.xml \
+            --cov-fail-under=75
+
+      - name: Publicar resumen QA en GitHub Step Summary
+        if: always() && matrix.python-version == '3.12'
+        run: |
+          echo "## Reporte Automático QA — Motor Contable Transaccional" >> $GITHUB_STEP_SUMMARY
+          echo "- **Python Matrix:** 3.11 y 3.12" >> $GITHUB_STEP_SUMMARY
+          echo "- **Suites ejecutadas:** Unitarias SUNAT, Integración API REST y Casos Borde / Carga ACID (150 transacciones)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality Gate Cobertura:** >= 75% sobre \`backend/\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Reportes generados:** \`coverage_html\`, \`coverage.xml\` y \`junit_results.xml\` (disponibles en Artifacts)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Subir reportes HTML/XML de QA como Artifact
+        if: always() && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-qa-cobertura-junit
+          path: reportes_qa/
+          retention-days: 14
+
+  validacion-esquema-y-ple-sunat:
+    name: 3. QA Contrato BD Relacional y Validador Formato PLE 5.1
+    needs: pruebas-matriz-y-cobertura
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validar esquema SQLite y generar evidencia oficial PLE Formato 5.1
+        run: |
+          mkdir -p evidencias_ple
+          python -c "
+          import os, sys, tempfile
+          sys.path.insert(0, 'backend')
+          from motor_contable import MotorContable
+
+          tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+          tmp.close()
+          motor = MotorContable(tmp.name)
+          nombre, contenido = motor.generar_ple_5_1(ruc_empresa='20601849211', periodo='2026-06')
+          ruta = os.path.join('evidencias_ple', nombre)
+          with open(ruta, 'w', encoding='utf-8') as f:
+              f.write(contenido)
+
+          lineas = contenido.splitlines()
+          assert len(lineas) >= 19, 'Cantidad insuficiente de apuntes en PLE 5.1'
+          for idx, l in enumerate(lineas, start=1):
+              campos = l.split('|')
+              assert len(campos) == 22 and campos[-1] == '', f'Línea {idx} inválida en PLE 5.1'
+          print(f'OK: Archivo PLE generado y validado -> {nombre} ({len(lineas)} líneas conformes a SUNAT 5.1)')
+          os.unlink(tmp.name)
+          "
+
+      - name: Subir archivo PLE 5.1 validado como Artifact QA
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-ple-sunat-5-1
+          path: evidencias_ple/
+          retention-days: 14

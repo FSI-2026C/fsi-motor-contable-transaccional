@@ -1,4 +1,4 @@
-name: QA - Validación de Pull Request y Flujo de Trabajo
+name: QA - Quality Gate de Pull Request y Flujo de Trabajo
 
 on:
   pull_request:
@@ -7,30 +7,41 @@ on:
 
 jobs:
   validar-convenciones-pr:
-    name: Validar convención de título y descripción (docs/flujo-de-trabajo.md)
+    name: Validar Rama, Título, Descripción y Checklist DoD
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validar formato del título y cuerpo del PR
+      - name: Validar reglas de docs/flujo-de-trabajo.md
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           python3 -c "
           import os, re, sys
 
           title = (os.environ.get('PR_TITLE') or '').strip()
           body = (os.environ.get('PR_BODY') or '').strip()
+          head = (os.environ.get('HEAD_REF') or '').strip()
+          base = (os.environ.get('BASE_REF') or '').strip()
 
-          patron = r'^(feat|fix|docs|chore|test):\s+.+'
-          if not re.match(patron, title):
-              print(f'ERROR: El título del PR \"{title}\" no cumple la convención del equipo.')
-              print('Formato esperado: feat|fix|docs|chore|test: descripción en minúsculas')
+          errores = []
+
+          if not re.match(r'^(feat|fix|docs|chore|test):\s+.+', title):
+              errores.append(f'Título inválido: \"{title}\". Debe iniciar con feat:, fix:, docs:, chore: o test:')
+
+          if base == 'develop' and not re.match(r'^(feat|fix|docs|chore|test)/[a-z0-9-]+$', head):
+              errores.append(f'Nombre de rama origen inválido: \"{head}\". Usar formato feat/descripcion-sin-acentos')
+
+          if len(body) < 25:
+              errores.append('La descripción del PR es demasiado corta; completar la plantilla oficial de PR.')
+
+          if errores:
+              print('=== ERRORES DE FLUJO QA ===')
+              for e in errores:
+                  print('-', e)
               sys.exit(1)
 
-          if len(body) < 15:
-              print('ERROR: El Pull Request debe incluir una descripción detallada usando la plantilla de PR.')
-              sys.exit(1)
-
-          print(f'OK: Título y descripción del PR cumplen docs/flujo-de-trabajo.md -> \"{title}\"')
+          print(f'OK: PR válido ({head} -> {base}) | \"{title}\"')
           "

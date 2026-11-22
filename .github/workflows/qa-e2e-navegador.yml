@@ -1,0 +1,38 @@
+name: QA - Pruebas E2E en Navegador Real (Playwright Chromium)
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  e2e-ui-playwright:
+    name: E2E - Flujo Contador en Chromium (Registro, Destino, Extorno y Auditoría)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Playwright y navegador Chromium
+        run: |
+          pip install playwright pytest
+          playwright install chromium --with-deps
+
+      - name: Ejecutar pruebas End-to-End en interfaz real
+        run: pytest tests/test_e2e_ui.py -v
+
+      - name: Subir capturas de evidencia E2E como Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-e2e-screenshots
+          path: evidencias_e2e/
+          retention-days: 14

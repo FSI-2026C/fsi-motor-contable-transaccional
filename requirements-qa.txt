@@ -1,0 +1,5 @@
+# Dependencias exclusivas para automatización QA / CI (la app en producción no requiere librerías externas)
+pytest>=8.0.0
+pytest-cov>=5.0.0
+ruff>=0.6.0
+bandit>=1.7.9
