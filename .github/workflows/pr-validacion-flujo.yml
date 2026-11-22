@@ -1,0 +1,36 @@
+name: QA - Validación de Pull Request y Flujo de Trabajo
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validar-convenciones-pr:
+    name: Validar convención de título y descripción (docs/flujo-de-trabajo.md)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validar formato del título y cuerpo del PR
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 -c "
+          import os, re, sys
+
+          title = (os.environ.get('PR_TITLE') or '').strip()
+          body = (os.environ.get('PR_BODY') or '').strip()
+
+          patron = r'^(feat|fix|docs|chore|test):\s+.+'
+          if not re.match(patron, title):
+              print(f'ERROR: El título del PR \"{title}\" no cumple la convención del equipo.')
+              print('Formato esperado: feat|fix|docs|chore|test: descripción en minúsculas')
+              sys.exit(1)
+
+          if len(body) < 15:
+              print('ERROR: El Pull Request debe incluir una descripción detallada usando la plantilla de PR.')
+              sys.exit(1)
+
+          print(f'OK: Título y descripción del PR cumplen docs/flujo-de-trabajo.md -> \"{title}\"')
+          "

@@ -1,0 +1,70 @@
+name: CI / QA - Motor Contable Transaccional
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  qa-pruebas-unitarias-e-integracion:
+    name: QA - Pruebas Unitarias, Integración API y Esquema SQL
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verificar sintaxis Python (backend y tests)
+        run: python -m compileall -q backend tests
+
+      - name: Validar integridad del esquema relacional SQLite (database/schema.sql)
+        run: |
+          python -c "
+          import sqlite3, pathlib
+          conn = sqlite3.connect(':memory:')
+          conn.executescript(pathlib.Path('database/schema.sql').read_text(encoding='utf-8'))
+          tablas = [r[0] for r in conn.execute(\"SELECT name FROM sqlite_master WHERE type='table'\").fetchall()]
+          esperadas = {'periodos_contables', 'cuentas_pcge', 'asientos_cabecera', 'asientos_detalle', 'auditoria_transacciones'}
+          faltantes = esperadas - set(tablas)
+          assert not faltantes, f'Tablas faltantes en schema.sql: {faltantes}'
+          print('Esquema SQL verificado correctamente. Tablas:', sorted(esperadas))
+          "
+
+      - name: Ejecutar suite completa de pruebas QA (unitarias e integración API)
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+  qa-calidad-y-dod:
+    name: QA - Verificación de DoD, Frontend JS y Archivos Prohibidos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js para validación de sintaxis JS
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verificar sintaxis JavaScript del frontend
+        run: |
+          node --check frontend/static/js/pcge.js
+          node --check frontend/static/js/app.js
+          echo "Sintaxis JavaScript verificada sin errores."
+
+      - name: Verificar Definition of Done (sin bases de datos ni archivos temporales versionados)
+        run: |
+          PROHIBIDOS=$(git ls-files '*.db' '*.sqlite' '*.sqlite3' '.env' '*.pyc')
+          if [ -n "$PROHIBIDOS" ]; then
+            echo "ERROR DoD: Se encontraron archivos generados o sensibles en el repositorio:"
+            echo "$PROHIBIDOS"
+            exit 1
+          fi
+          echo "OK: No existen archivos prohibidos ni bases de datos binarias versionadas."
