@@ -233,10 +233,10 @@ class MotorContable:
             r["codigo"] for r in cur.execute("SELECT codigo FROM cuentas_pcge").fetchall()
         }
 
-        for idx, l in enumerate(lineas, start=1):
-            cta = str(l.get("cuenta", "")).strip()
-            debe = round(float(l.get("debe", 0) or 0), 2)
-            haber = round(float(l.get("haber", 0) or 0), 2)
+        for idx, linea in enumerate(lineas, start=1):
+            cta = str(linea.get("cuenta", "")).strip()
+            debe = round(float(linea.get("debe", 0) or 0), 2)
+            haber = round(float(linea.get("haber", 0) or 0), 2)
 
             if cta not in cuentas_validas:
                 raise ErrorValidacionContable(f"Línea {idx}: La cuenta PCGE '{cta}' no existe en el catálogo.")
@@ -276,11 +276,11 @@ class MotorContable:
             "total": total_debe,
             "lineas": [
                 {
-                    "cuenta": str(l["cuenta"]).strip(),
-                    "debe": round(float(l.get("debe", 0) or 0), 2),
-                    "haber": round(float(l.get("haber", 0) or 0), 2),
+                    "cuenta": str(linea["cuenta"]).strip(),
+                    "debe": round(float(linea.get("debe", 0) or 0), 2),
+                    "haber": round(float(linea.get("haber", 0) or 0), 2),
                 }
-                for l in lineas
+                for linea in lineas
             ],
         }
 
@@ -322,13 +322,13 @@ class MotorContable:
                 ),
             )
 
-            for idx, l in enumerate(asiento["lineas"], start=1):
+            for idx, linea in enumerate(asiento["lineas"], start=1):
                 cur.execute(
                     """
                     INSERT INTO asientos_detalle (cuo, item, cuenta_pcge, debe, haber)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (asiento["cuo"], idx, l["cuenta"], l["debe"], l["haber"]),
+                    (asiento["cuo"], idx, linea["cuenta"], linea["debe"], linea["haber"]),
                 )
 
             cur.execute(
@@ -608,31 +608,31 @@ class MotorContable:
             else:
                 serie, numero = "0000", a["num_doc"]
 
-            for idx, l in enumerate(a["lineas"], start=1):
+            for idx, linea in enumerate(a["lineas"], start=1):
                 correlativo = f"M{idx:04d}"
                 # Estructura oficial simplificada 21 campos Formato 5.1 PLE SUNAT
                 campos = [
-                    periodo_ple,                 # 1. Período (AAAAMM00)
-                    a["cuo"],                    # 2. Código Único de Operación (CUO)
-                    correlativo,                 # 3. Número correlativo del asiento (M0001)
-                    l["cuenta"],                 # 4. Código de cuenta contable PCGE
-                    "",                          # 5. Código de unidad de operación
-                    "",                          # 6. Código de centro de costo
-                    "PEN",                       # 7. Tipo de moneda de origen
-                    "6",                         # 8. Tipo doc identidad emisor (6 = RUC)
-                    a["ruc_tercero"],            # 9. Número de RUC emisor
-                    cod_tipo_doc,                # 10. Tipo de comprobante de pago (Tabla 10)
-                    serie,                       # 11. Número de serie del comprobante
-                    numero,                      # 12. Número del comprobante
-                    fecha_ddmmyyyy,              # 13. Fecha contable
-                    "",                          # 14. Fecha de vencimiento
-                    fecha_ddmmyyyy,              # 15. Fecha de operación o emisión
-                    a["glosa"].replace("|", " "),# 16. Glosa o descripción de la operación
-                    "",                          # 17. Glosa referencial
-                    f"{l['debe']:.2f}",          # 18. Movimientos del Debe
-                    f"{l['haber']:.2f}",         # 19. Movimientos del Haber
-                    "",                          # 20. Dato estructurado (Libro Auxiliar)
-                    "1",                         # 21. Estado de la operación (1 = vigente)
+                    periodo_ple,                   # 1. Período (AAAAMM00)
+                    a["cuo"],                      # 2. Código Único de Operación (CUO)
+                    correlativo,                   # 3. Número correlativo del asiento (M0001)
+                    linea["cuenta"],               # 4. Código de cuenta contable PCGE
+                    "",                            # 5. Código de unidad de operación
+                    "",                            # 6. Código de centro de costo
+                    "PEN",                         # 7. Tipo de moneda de origen
+                    "6",                           # 8. Tipo doc identidad emisor (6 = RUC)
+                    a["ruc_tercero"],              # 9. Número de RUC emisor
+                    cod_tipo_doc,                  # 10. Tipo de comprobante de pago (Tabla 10)
+                    serie,                         # 11. Número de serie del comprobante
+                    numero,                        # 12. Número del comprobante
+                    fecha_ddmmyyyy,                # 13. Fecha contable
+                    "",                            # 14. Fecha de vencimiento
+                    fecha_ddmmyyyy,                # 15. Fecha de operación o emisión
+                    a["glosa"].replace("|", " "),  # 16. Glosa o descripción de la operación
+                    "",                            # 17. Glosa referencial
+                    f"{linea['debe']:.2f}",        # 18. Movimientos del Debe
+                    f"{linea['haber']:.2f}",       # 19. Movimientos del Haber
+                    "",                            # 20. Dato estructurado (Libro Auxiliar)
+                    "1",                           # 21. Estado de la operación (1 = vigente)
                 ]
                 lineas_txt.append("|".join(campos) + "|")
 

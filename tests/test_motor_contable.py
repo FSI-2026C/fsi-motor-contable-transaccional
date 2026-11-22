@@ -115,9 +115,9 @@ class TestMotorContableSUNAT(unittest.TestCase):
         lineas = contenido.splitlines()
         self.assertGreaterEqual(len(lineas), 19)
         # Cada línea del PLE 5.1 debe terminar en pipe '|' y contener 21 campos
-        for l in lineas:
-            self.assertTrue(l.endswith("|"))
-            self.assertEqual(len(l.split("|")) - 1, 21)
+        for linea in lineas:
+            self.assertTrue(linea.endswith("|"))
+            self.assertEqual(len(linea.split("|")) - 1, 21)
 
     def test_09_mayor_mantiene_cuadre_global(self):
         mayor = self.motor.obtener_libro_mayor()
