@@ -1,0 +1,20 @@
+# Base de datos local generada automáticamente al iniciar app.py
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Caché y compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+venv/
+.venv/
+
+# Archivos de editor y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

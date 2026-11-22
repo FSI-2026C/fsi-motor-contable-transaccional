@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motor Contable Transaccional — Libro Diario SUNAT (Formato 5.1)</title>
+  <link rel="stylesheet" href="static/css/styles.css" />
+</head>
+<body>
+
+  <!-- ==================== BARRA SUPERIOR ==================== -->
+  <header class="topbar no-print">
+    <div class="topbar-left">
+      <div class="app-brand">
+        <div class="app-brand-mark">MC</div>
+        <span>Motor Contable Transaccional</span>
+      </div>
+      <nav class="topbar-nav">
+        <button class="topbar-tab active" id="tab-1" onclick="setView('1')">Libro Diario (Formato 5.1)</button>
+        <button class="topbar-tab" id="tab-2" onclick="setView('2')">Registrar Asiento</button>
+        <button class="topbar-tab" id="tab-3" onclick="setView('3')">Libro Mayor (PCGE)</button>
+        <button class="topbar-tab" id="tab-4" onclick="setView('4')">Auditoría y Período</button>
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <span>RUC: <strong>20601849211</strong> — Comercial Andina S.A.C.</span>
+      <div class="topbar-divider"></div>
+      <span>Período <strong>06/2026</strong>: <span id="topbar-period-pill" class="period-pill open">ABIERTO</span></span>
+      <div class="topbar-divider"></div>
+      <span>Moneda: <strong>PEN (S/)</strong></span>
+    </div>
+  </header>
+
+  <!-- ==================== SUBHEADER ==================== -->
+  <div class="subheader no-print">
+    <div class="subheader-left">
+      <span class="subheader-path">Contabilidad General / Libros Electrónicos SUNAT</span>
+      <h1 class="subheader-title" id="page-heading">Formato 5.1: Libro Diario</h1>
+    </div>
+    <div class="subheader-actions">
+      <button class="btn" onclick="resetDemoData()">Restaurar datos base</button>
+      <button class="btn" onclick="exportPLE()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Exportar PLE (.txt)
+      </button>
+      <button class="btn" onclick="exportCSV()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar CSV / Excel
+      </button>
+      <button class="btn" onclick="window.print()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir
+      </button>
+      <button class="btn btn-primary" onclick="setView('2')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo asiento contable
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+  <main class="workspace">
+
+    <!-- Tirilla de Totales -->
+    <div class="summary-strip">
+      <div class="summary-item">
+        <span class="summary-label">Total Debe (Período 06/2026)</span>
+        <span class="summary-val" id="kpi-debe">S/ 0.00</span>
+        <span class="summary-note">Suma de cargos registrados</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Total Haber (Período 06/2026)</span>
+        <span class="summary-val" id="kpi-haber">S/ 0.00</span>
+        <span class="summary-note">Suma de abonos registrados</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Diferencia (Partida Doble)</span>
+        <span class="summary-val" id="kpi-diff" style="color:#15803d;">S/ 0.00</span>
+        <span class="summary-note">Libro cuadrado (Debe = Haber)</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Operaciones Contabilizadas</span>
+        <span class="summary-val" id="kpi-count">0 asientos</span>
+        <span class="summary-note" id="kpi-lines-sub">0 apuntes contables PCGE</span>
+      </div>
+    </div>
+
+    <!-- ==================== VISTA 1: LIBRO DIARIO ==================== -->
+    <section class="view-section active" id="view-1">
+      <div class="panel">
+        <div class="panel-toolbar no-print">
+          <div class="toolbar-group">
+            <input type="text" id="filter-text" class="form-input" style="width:260px;" placeholder="Buscar por CUO, glosa, cuenta o comprobante..." oninput="renderLibroDiario()" />
+            <select id="filter-libro" class="form-select" onchange="renderLibroDiario()">
+              <option value="TODOS">Todos los libros auxiliares (Tabla 8)</option>
+              <option value="14 · Registro de Ventas e Ingresos">14 - Registro de Ventas e Ingresos</option>
+              <option value="08 · Registro de Compras">08 - Registro de Compras</option>
+              <option value="01 · Libro Caja y Bancos">01 - Libro Caja y Bancos</option>
+              <option value="05 · Libro Diario">05 - Libro Diario</option>
+            </select>
+            <select id="filter-view-mode" class="form-select" onchange="renderLibroDiario()">
+              <option value="detallado">Vista detallada (Formato 5.1 por línea)</option>
+              <option value="resumen">Vista agrupada por asiento</option>
+            </select>
+          </div>
+          <div style="font-size:12px; color:#4b5563;">
+            Norma: <strong>R.S. N° 234-2006/SUNAT</strong> · Plan Contable: <strong>PCGE</strong>
+          </div>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:9%;">CUO / Corr.</th>
+              <th style="width:8%;">Fecha</th>
+              <th style="width:24%;">Glosa o Descripción de la Operación</th>
+              <th style="width:15%;">Referencia (Libro / Comprobante)</th>
+              <th style="width:7%;">Cta. PCGE</th>
+              <th style="width:21%;">Denominación de la Cuenta Contable</th>
+              <th class="num" style="width:8%;">Debe (S/)</th>
+              <th class="num" style="width:8%;">Haber (S/)</th>
+            </tr>
+          </thead>
+          <tbody id="diario-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 2: REGISTRO DE ASIENTO ==================== -->
+    <section class="view-section" id="view-2">
+      <div class="alert-closed" id="form-closed-alert" style="display:none;">
+        El período contable 06/2026 se encuentra CERRADO. Para registrar nuevos asientos debe reabrir el período desde la pestaña "Auditoría y Período".
+      </div>
+
+      <div class="panel">
+        <div class="form-section-title">
+          <span>Datos de Cabecera del Asiento (Formato 5.1 SUNAT)</span>
+          <div class="toolbar-group">
+            <span style="font-size:12px; font-weight:500; color:#4b5563;">Asiento tipo:</span>
+            <select id="tpl-select" class="form-select" onchange="cargarPlantilla(this.value)">
+              <option value="venta">Venta local de mercadería (12 / 40 / 70)</option>
+              <option value="compra_mercaderia">Compra de mercadería + Destino almacén (60/40/42 + 20/61)</option>
+              <option value="gasto_servicio">Gasto por servicio + Destino gasto (63/40/42 + 94/79)</option>
+              <option value="cobro_banco">Cobranza o pago por banco (1041 / 1212)</option>
+              <option value="planilla">Provisión de planilla, EsSalud y ONP (62 / 40 / 41)</option>
+            </select>
+            <span style="font-size:12px; font-weight:500; color:#4b5563;">Total operación (S/):</span>
+            <input type="number" id="calc-monto" class="form-input" style="width:105px; text-align:right;" value="1180.00" step="0.01" />
+            <button type="button" class="btn btn-sm" onclick="recalcularPlantillaActual()">Calcular IGV (18%)</button>
+          </div>
+        </div>
+
+        <div class="form-body">
+          <div class="field-grid">
+            <div class="field">
+              <label>N° Correlativo (CUO) <span class="req">*</span></label>
+              <input type="text" id="f-cuo" class="form-input" value="CUO-0006" oninput="validarReglasEnVivo()" />
+            </div>
+            <div class="field">
+              <label>Fecha de Operación <span class="req">*</span></label>
+              <input type="date" id="f-fecha" class="form-input" value="2026-06-30" oninput="validarReglasEnVivo()" />
+            </div>
+            <div class="field">
+              <label>Libro Auxiliar (Tabla 8 SUNAT) <span class="req">*</span></label>
+              <select id="f-libro" class="form-select" onchange="validarReglasEnVivo()">
+                <option value="14 · Registro de Ventas e Ingresos">14 - Registro de Ventas e Ingresos</option>
+                <option value="08 · Registro de Compras">08 - Registro de Compras</option>
+                <option value="01 · Libro Caja y Bancos">01 - Libro Caja y Bancos</option>
+                <option value="05 · Libro Diario">05 - Libro Diario</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tipo Comprobante (Tabla 10) <span class="req">*</span></label>
+              <select id="f-tipo-doc" class="form-select" onchange="validarReglasEnVivo()">
+                <option value="01 - Factura">01 - Factura</option>
+                <option value="03 - Boleta de Venta">03 - Boleta de Venta</option>
+                <option value="07 - Nota de Crédito">07 - Nota de Crédito</option>
+                <option value="02 - Recibo por Honorarios">02 - Recibo por Honorarios</option>
+                <option value="00 - Otros">00 - Otros (Voucher / Planilla)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Serie y N° Comprobante <span class="req">*</span></label>
+              <input type="text" id="f-num-doc" class="form-input" value="F001-00125" placeholder="F001-00125" oninput="validarReglasEnVivo()" />
+            </div>
+            <div class="field">
+              <label>RUC Cliente / Proveedor (11 díg.) <span class="req">*</span></label>
+              <input type="text" id="f-ruc" class="form-input" value="20604152631" maxlength="11" placeholder="20604152631" oninput="validarReglasEnVivo()" />
+            </div>
+            <div class="field span-2">
+              <label>Razón Social / Denominación del Anexo</label>
+              <input type="text" id="f-razon" class="form-input" value="INVERSIONES TECNOLÓGICAS DEL PERÚ S.A.C." oninput="validarReglasEnVivo()" />
+            </div>
+            <div class="field span-4">
+              <label>Glosa o Descripción de la Operación <span class="req">*</span></label>
+              <input type="text" id="f-glosa" class="form-input" value="Por la venta de mercaderías según Factura Electrónica F001-00125" oninput="validarReglasEnVivo()" />
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-top:8px; border-top:1px solid #e5e7eb;">
+            <span style="font-weight:600; color:#111827;">Detalle de Apuntes Contables (Partida Doble PCGE)</span>
+            <div class="toolbar-group">
+              <button type="button" class="btn btn-sm" onclick="cuadrarAutomaticamente()">Cuadrar diferencia</button>
+              <button type="button" class="btn btn-sm" onclick="agregarAsientoDestinoAutomatico()">Generar asiento de destino (Elem. 6)</button>
+              <button type="button" class="btn btn-sm btn-primary" onclick="agregarLineaFormulario()">+ Agregar línea</button>
+            </div>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:48%;">Cuenta Contable PCGE</th>
+                <th style="width:14%;">Posición</th>
+                <th class="num" style="width:14%;">Debe (S/)</th>
+                <th class="num" style="width:14%;">Haber (S/)</th>
+                <th style="width:5%; text-align:center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="form-lines-tbody"></tbody>
+            <tfoot>
+              <tr class="table-footer">
+                <td colspan="3" style="text-align:right;">SUMAS DEL ASIENTO:</td>
+                <td class="num" id="form-total-debe">0.00</td>
+                <td class="num" id="form-total-haber">0.00</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="validation-bar valid" id="validation-bar">
+            <div class="validation-list">
+              <span id="v-r1">[OK] Partida doble (Dif: S/ 0.00)</span>
+              <span id="v-r2">[OK] Cuentas PCGE</span>
+              <span id="v-r3">[OK] Glosa y Fecha</span>
+              <span id="v-r4">[OK] Comprobante y RUC (11 díg.)</span>
+              <span id="v-r5">[OK] Asiento de destino</span>
+            </div>
+            <div class="toolbar-group">
+              <button type="button" class="btn" onclick="setView('1')">Cancelar</button>
+              <button type="button" class="btn btn-success" id="btn-grabar-asiento" onclick="guardarAsientoSunat()">Grabar asiento en Libro Diario</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 3: LIBRO MAYOR ==================== -->
+    <section class="view-section" id="view-3">
+      <div class="panel">
+        <div class="panel-toolbar">
+          <span style="font-weight:600; color:#111827;">Resumen de Movimientos y Saldos por Cuenta Contable (Mayorización)</span>
+          <span style="font-size:12px; color:#6b7280;">Calculado automáticamente desde el Libro Diario</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:10%;">Código PCGE</th>
+              <th style="width:20%;">Elemento / Rubro</th>
+              <th style="width:34%;">Denominación de la Cuenta Contable</th>
+              <th class="num" style="width:12%;">Cargos / Debe (S/)</th>
+              <th class="num" style="width:12%;">Abonos / Haber (S/)</th>
+              <th class="num" style="width:12%;">Saldo Final</th>
+            </tr>
+          </thead>
+          <tbody id="mayor-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 4: AUDITORÍA Y PERÍODO ==================== -->
+    <section class="view-section" id="view-4">
+      <div class="panel">
+        <div class="panel-toolbar">
+          <div class="toolbar-group">
+            <span style="font-weight:600; color:#111827;">Control de Cierre de Período Contable — 06/2026:</span>
+            <span id="periodo-status-tag" class="status-tag ok">ABIERTO</span>
+          </div>
+          <button type="button" id="btn-toggle-periodo" class="btn btn-danger" onclick="toggleEstadoPeriodo()">
+            Cerrar período contable 06/2026
+          </button>
+        </div>
+        <div style="padding:12px 14px; font-size:12.5px; color:#4b5563;">
+          Al cerrar un período contable, el motor bloquea el registro de nuevos asientos y extornos sobre ese mes para proteger la integridad de los libros electrónicos declarados a SUNAT.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-toolbar">
+          <span style="font-weight:600; color:#111827;">Bitácora de Auditoría Transaccional</span>
+          <span style="font-size:12px; color:#6b7280;">Registro inmutable de operaciones (ACID SQLite)</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:6%;">ID</th>
+              <th style="width:16%;">Fecha y Hora</th>
+              <th style="width:12%;">Usuario</th>
+              <th style="width:16%;">Acción</th>
+              <th style="width:12%;">CUO / Período</th>
+              <th style="width:38%;">Detalle de la Transacción</th>
+            </tr>
+          </thead>
+          <tbody id="auditoria-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODAL COMPROBANTE ==================== -->
+  <div class="modal-overlay no-print" id="modal-voucher">
+    <div class="modal-window">
+      <div class="modal-head">
+        <span>Comprobante de Asiento Contable (Formato 5.1)</span>
+        <button class="btn btn-sm" onclick="cerrarVoucher()">Cerrar</button>
+      </div>
+      <div class="modal-content" id="voucher-body"></div>
+      <div class="modal-foot">
+        <button class="btn" onclick="cerrarVoucher()">Cerrar</button>
+        <button class="btn btn-primary" onclick="window.print()">Imprimir comprobante</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL CONFIRMAR EXTORNO ==================== -->
+  <div class="modal-overlay no-print" id="modal-extorno">
+    <div class="modal-window small">
+      <div class="modal-head">
+        <span>Generar Contra-asiento de Extorno (Inmutabilidad SUNAT)</span>
+        <button class="btn btn-sm" onclick="cerrarModalExtorno()">Cerrar</button>
+      </div>
+      <div class="modal-content" style="display:flex; flex-direction:column; gap:12px;">
+        <p style="font-size:12.5px; color:#374151;">
+          Según normativa SUNAT, los asientos contabilizados no se eliminan físicamente. Se marcará el asiento <strong id="extorno-cuo-lbl"></strong> como <strong>EXTORNADO</strong> y se generará automáticamente su contra-asiento invirtiendo los importes de <strong>Debe</strong> y <strong>Haber</strong>.
+        </p>
+        <div class="field">
+          <label>Motivo del extorno</label>
+          <input type="text" id="extorno-motivo" class="form-input" value="Anulación de operación por corrección contable" />
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="cerrarModalExtorno()">Cancelar</button>
+        <button class="btn btn-danger" onclick="confirmarExtorno()">Confirmar extorno</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap no-print" id="toast-container"></div>
+
+  <script src="static/js/pcge.js"></script>
+  <script src="static/js/app.js"></script>
+</body>
+</html>
